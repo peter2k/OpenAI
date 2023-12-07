@@ -135,6 +135,16 @@ extension Chat.Content {
     public func encode(to encoder: Encoder) throws {
         try codableRepresentation.encode(to: encoder)
     }
+
+    public var text: String? {
+        guard case .text(let text) = self else { return nil }
+        return text
+    }
+
+    public var imageURL: URL? {
+        guard case .imageURL(let url) = self else { return nil }
+        return url
+    }
 }
 
 public struct ChatFunctionCall: Codable, Equatable {
