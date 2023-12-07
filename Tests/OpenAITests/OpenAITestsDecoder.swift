@@ -168,7 +168,7 @@ class OpenAITestsDecoder: XCTestCase {
         {
           "model": "gpt-3.5-turbo",
           "messages": [
-            { "role": "user", "content": { "type": "text", "text": "What's the weather like in Boston?" } }
+            { "role": "user", "content": [ { "type": "text", "text": "What's the weather like in Boston?" } ] }
           ],
           "response_format": {
             "type": "json_object"

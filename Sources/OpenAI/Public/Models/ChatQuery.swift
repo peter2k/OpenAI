@@ -33,7 +33,7 @@ public struct Chat: Codable, Equatable {
 
     public let role: Role
     /// The contents of the message. `content` is required for all messages except assistant messages with function calls.
-    public let content: Content?
+    public let content: [Content]?
     /// The name of the author of this message. `name` is required if role is `function`, and it should be the name of the function whose response is in the `content`. May contain a-z, A-Z, 0-9, and underscores, with a maximum length of 64 characters.
     public let name: String?
     public let functionCall: ChatFunctionCall?
@@ -54,10 +54,10 @@ public struct Chat: Codable, Equatable {
     
     @_disfavoredOverload
     public init(role: Role, content: String? = nil, name: String? = nil, functionCall: ChatFunctionCall? = nil) {
-        self.init(role: role, content: content.flatMap({ Content.text($0) }), name: name, functionCall: functionCall)
+        self.init(role: role, content: content.flatMap({ [Content.text($0)] }), name: name, functionCall: functionCall)
     }
 
-    public init(role: Role, content: Content? = nil, name: String? = nil, functionCall: ChatFunctionCall? = nil) {
+    public init(role: Role, content: [Content]? = nil, name: String? = nil, functionCall: ChatFunctionCall? = nil) {
         self.role = role
         self.content = content
         self.name = name
@@ -80,6 +80,19 @@ public struct Chat: Codable, Equatable {
         // See https://openai.com/blog/function-calling-and-other-api-updates
         if content != nil || (role == .assistant && functionCall != nil) {
             try container.encode(content, forKey: .content)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.role = try container.decode(Chat.Role.self, forKey: .role)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.functionCall = try container.decodeIfPresent(ChatFunctionCall.self, forKey: .functionCall)
+
+        if let strContent = try? container.decodeIfPresent(String.self, forKey: .content) {
+            self.content = [.text(strContent)]
+        } else {
+            self.content = try container.decodeIfPresent([Chat.Content].self, forKey: .content)
         }
     }
 }
