@@ -21,9 +21,19 @@ public struct ResponseFormat: Codable, Equatable {
 }
 
 public struct Chat: Codable, Equatable {
+    /// The contents of the message, which can be either a text prompt or an image (for vision models).
+    public enum Content: Codable, Equatable {
+        /// A text prompt.
+        case text(String)
+        /// An image prompt from a remote URL.
+        case imageURL(URL)
+        /// An image prompt from image data.
+        case image(_ data: Data, _ mimeType: String)
+    }
+
     public let role: Role
     /// The contents of the message. `content` is required for all messages except assistant messages with function calls.
-    public let content: String?
+    public let content: Content?
     /// The name of the author of this message. `name` is required if role is `function`, and it should be the name of the function whose response is in the `content`. May contain a-z, A-Z, 0-9, and underscores, with a maximum length of 64 characters.
     public let name: String?
     public let functionCall: ChatFunctionCall?
@@ -42,7 +52,12 @@ public struct Chat: Codable, Equatable {
         case functionCall = "function_call"
     }
     
+    @_disfavoredOverload
     public init(role: Role, content: String? = nil, name: String? = nil, functionCall: ChatFunctionCall? = nil) {
+        self.init(role: role, content: content.flatMap({ Content.text($0) }), name: name, functionCall: functionCall)
+    }
+
+    public init(role: Role, content: Content? = nil, name: String? = nil, functionCall: ChatFunctionCall? = nil) {
         self.role = role
         self.content = content
         self.name = name
@@ -66,6 +81,59 @@ public struct Chat: Codable, Equatable {
         if content != nil || (role == .assistant && functionCall != nil) {
             try container.encode(content, forKey: .content)
         }
+    }
+}
+
+extension Chat.Content {
+    struct CodableRepresentation: Codable {
+        var type: String
+        var text: String?
+        var imageURL: String?
+        enum CodingKeys: String, CodingKey {
+            case type, text
+            case imageURL = "image_url"
+        }
+    }
+
+    init(_ codable: CodableRepresentation) throws {
+        switch codable.type {
+        case "text":
+            guard let text = codable.text else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Chat text content has no text"))
+            }
+            self = .text(text)
+        case "image_url":
+            guard let imageURLStr = codable.imageURL else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Chat image content has no image_url"))
+            }
+            guard let imageURL = URL(string: imageURLStr) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Chat image content has invalid image_url: \"\(imageURLStr)\""))
+            }
+            self = .imageURL(imageURL)
+        default:
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Invalid chat content type \"\(codable.type)\""))
+        }
+    }
+
+    var codableRepresentation: CodableRepresentation {
+        switch self {
+        case .text(let text): return CodableRepresentation(type: "text", text: text)
+        case .imageURL(let url): return CodableRepresentation(type: "image_url", imageURL: url.absoluteString)
+        case .image(let data, let mimeType): return CodableRepresentation(type: "image_url", imageURL: "data:\(mimeType);base64,\(data.base64EncodedString())")
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let stringContainer = try? decoder.singleValueContainer(), let string = try? stringContainer.decode(String.self) {
+            self = .text(string)
+        } else {
+            let codable = try CodableRepresentation(from: decoder)
+            try self.init(codable)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try codableRepresentation.encode(to: encoder)
     }
 }
 
