@@ -44,9 +44,9 @@ class OpenAITests: XCTestCase {
     }
     
     func testImages() async throws {
-        let query = ImagesQuery(prompt: "White cat with heterochromia sitting on the kitchen table", n: 1, size: "1024x1024")
+        let query = ImagesQuery(prompt: "White cat with heterochromia sitting on the kitchen table", model: .dall_e_2, n: 1, size: "1024x1024")
         let imagesResult = ImagesResult(created: 100, data: [
-            .init(url: "http://foo.bar")
+            .init(url: "http://foo.bar", b64_json: nil)
         ])
         try self.stub(result: imagesResult)
         let result = try await openAI.images(query: query)
@@ -59,6 +59,44 @@ class OpenAITests: XCTestCase {
         self.stub(error: inError)
         
         let apiError: APIError = try await XCTExpectError { try await openAI.images(query: query) }
+        XCTAssertEqual(inError, apiError)
+    }
+    
+    func testImageEdit() async throws {
+        let query = ImageEditsQuery(image: Data(), fileName: "whitecat.png", prompt: "White cat with heterochromia sitting on the kitchen table with a bowl of food", n: 1, size: "1024x1024")
+        let imagesResult = ImagesResult(created: 100, data: [
+            .init(url: "http://foo.bar", b64_json: nil)
+        ])
+        try self.stub(result: imagesResult)
+        let result = try await openAI.imageEdits(query: query)
+        XCTAssertEqual(result, imagesResult)
+    }
+    
+    func testImageEditError() async throws {
+        let query = ImageEditsQuery(image: Data(), fileName: "whitecat.png", prompt: "White cat with heterochromia sitting on the kitchen table with a bowl of food", n: 1, size: "1024x1024")
+        let inError = APIError(message: "foo", type: "bar", param: "baz", code: "100")
+        self.stub(error: inError)
+        
+        let apiError: APIError = try await XCTExpectError { try await openAI.imageEdits(query: query) }
+        XCTAssertEqual(inError, apiError)
+    }
+    
+    func testImageVariation() async throws {
+        let query = ImageVariationsQuery(image: Data(), fileName: "whitecat.png", n: 1, size: "1024x1024")
+        let imagesResult = ImagesResult(created: 100, data: [
+            .init(url: "http://foo.bar", b64_json: nil)
+        ])
+        try self.stub(result: imagesResult)
+        let result = try await openAI.imageVariations(query: query)
+        XCTAssertEqual(result, imagesResult)
+    }
+    
+    func testImageVariationError() async throws {
+        let query = ImageVariationsQuery(image: Data(), fileName: "whitecat.png", n: 1, size: "1024x1024")
+        let inError = APIError(message: "foo", type: "bar", param: "baz", code: "100")
+        self.stub(error: inError)
+        
+        let apiError: APIError = try await XCTExpectError { try await openAI.imageVariations(query: query) }
         XCTAssertEqual(inError, apiError)
     }
     
@@ -79,7 +117,7 @@ class OpenAITests: XCTestCase {
     }
 
     func testChatsFunction() async throws {
-        let query = ChatQuery(model: .gpt3_5Turbo0613, messages: [
+        let query = ChatQuery(model: .gpt3_5Turbo_1106, messages: [
             .init(role: .system, content: "You are Weather-GPT. You know everything about the weather."),
             .init(role: .user, content: "What's the weather like in Boston?"),
         ], functions: [
@@ -217,6 +255,15 @@ class OpenAITests: XCTestCase {
         self.stub(error: inError)
         
         let apiError: APIError = try await XCTExpectError { try await openAI.moderations(query: query) }
+        XCTAssertEqual(inError, apiError)
+    }
+    
+    func testAudioSpeechError() async throws {
+        let query = AudioSpeechQuery(model: .tts_1, input: "Hello, world!", voice: .alloy, responseFormat: .mp3, speed: 1.0)
+        let inError = APIError(message: "foo", type: "bar", param: "baz", code: "100")
+        self.stub(error: inError)
+        
+        let apiError: APIError = try await XCTExpectError { try await openAI.audioCreateSpeech(query: query) }
         XCTAssertEqual(inError, apiError)
     }
     
