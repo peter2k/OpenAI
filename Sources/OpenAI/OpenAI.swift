@@ -40,7 +40,7 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     private let session: URLSessionProtocol
-    private var streamingSessions: [NSObject] = []
+    private var streamingSessions = ArrayWithThreadSafety<NSObject>()
     
     public let configuration: Configuration
 
@@ -66,7 +66,7 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     public func completionsStream(query: CompletionsQuery, onResult: @escaping (Result<CompletionsResult, Error>) -> Void, completion: ((Error?) -> Void)?) {
-        performSteamingRequest(request: JSONRequest<CompletionsResult>(body: query.makeStreamable(), url: buildURL(path: .completions)), onResult: onResult, completion: completion)
+        performStreamingRequest(request: JSONRequest<CompletionsResult>(body: query.makeStreamable(), url: buildURL(path: .completions)), onResult: onResult, completion: completion)
     }
     
     public func images(query: ImagesQuery, completion: @escaping (Result<ImagesResult, Error>) -> Void) {
@@ -90,7 +90,7 @@ final public class OpenAI: OpenAIProtocol {
     }
     
     public func chatsStream(query: ChatQuery, onResult: @escaping (Result<ChatStreamResult, Error>) -> Void, completion: ((Error?) -> Void)?) {
-        performSteamingRequest(request: JSONRequest<ChatResult>(body: query.makeStreamable(), url: buildURL(path: .chats)), onResult: onResult, completion: completion)
+        performStreamingRequest(request: JSONRequest<ChatStreamResult>(body: query.makeStreamable(), url: buildURL(path: .chats)), onResult: onResult, completion: completion)
     }
     
     public func edits(query: EditsQuery, completion: @escaping (Result<EditsResult, Error>) -> Void) {
@@ -132,29 +132,16 @@ extension OpenAI {
                                             timeoutInterval: configuration.timeoutInterval)
             let task = session.dataTask(with: request) { data, _, error in
                 if let error = error {
-                    completion(.failure(error))
-                    return
+                    return completion(.failure(error))
                 }
                 guard let data = data else {
-                    completion(.failure(OpenAIError.emptyData))
-                    return
+                    return completion(.failure(OpenAIError.emptyData))
                 }
-
-                var apiError: Error? = nil
+                let decoder = JSONDecoder()
                 do {
-                    let decoded = try JSONDecoder().decode(ResultType.self, from: data)
-                    completion(.success(decoded))
+                    completion(.success(try decoder.decode(ResultType.self, from: data)))
                 } catch {
-                    apiError = error
-                }
-
-                if let apiError = apiError {
-                    do {
-                        let decoded = try JSONDecoder().decode(APIErrorResponse.self, from: data)
-                        completion(.failure(decoded))
-                    } catch {
-                        completion(.failure(apiError))
-                    }
+                    completion(.failure((try? decoder.decode(APIErrorResponse.self, from: data)) ?? error))
                 }
             }
             task.resume()
@@ -163,7 +150,7 @@ extension OpenAI {
         }
     }
     
-    func performSteamingRequest<ResultType: Codable>(request: any URLRequestBuildable, onResult: @escaping (Result<ResultType, Error>) -> Void, completion: ((Error?) -> Void)?) {
+    func performStreamingRequest<ResultType: Codable>(request: any URLRequestBuildable, onResult: @escaping (Result<ResultType, Error>) -> Void, completion: ((Error?) -> Void)?) {
         do {
             let request = try request.build(token: configuration.token, 
                                             organizationIdentifier: configuration.organizationIdentifier,
@@ -194,25 +181,13 @@ extension OpenAI {
             
             let task = session.dataTask(with: request) { data, _, error in
                 if let error = error {
-                    completion(.failure(error))
-                    return
+                    return completion(.failure(error))
                 }
                 guard let data = data else {
-                    completion(.failure(OpenAIError.emptyData))
-                    return
+                    return completion(.failure(OpenAIError.emptyData))
                 }
                 
-                completion(.success(AudioSpeechResult(audioData: data)))
-                let apiError: Error? = nil
-                
-                if let apiError = apiError {
-                    do {
-                        let decoded = try JSONDecoder().decode(APIErrorResponse.self, from: data)
-                        completion(.failure(decoded))
-                    } catch {
-                        completion(.failure(apiError))
-                    }
-                }
+                completion(.success(AudioSpeechResult(audio: data)))
             }
             task.resume()
         } catch {
