@@ -63,6 +63,10 @@ extension StreamingSession {
             return
         }
         
+        guard !stringContent.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("OPENROUTER PROCESSING") else {
+            return
+        }
+        
         let jsonObjects = "\(previousChunkBuffer)\(stringContent)"
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: "data:")
