@@ -7,6 +7,17 @@
 
 import Foundation
 
+final public class StreamCancellable<T: Codable> {
+    private var session: StreamingSession<T>? = nil
+    init(session: StreamingSession<T>?) {
+        self.session = session
+    }
+
+    public func cancel() {
+        session?.cancel()
+    }
+}
+
 public protocol OpenAIProtocol {
     
     /**
@@ -145,7 +156,7 @@ public protocol OpenAIProtocol {
        - onResult: A closure which receives the result when the API request finishes. The closure's parameter, `Result<ChatStreamResult, Error>`, will contain either the `ChatStreamResult` object with the model's response to the conversation, or an error if the request failed.
        - completion: A closure that is being called when all chunks are delivered or uncrecoverable error occured
     **/
-    func chatsStream(query: ChatQuery, onResult: @escaping (Result<ChatStreamResult, Error>) -> Void, completion: ((Error?) -> Void)?)
+    func chatsStream(query: ChatQuery, onResult: @escaping (Result<ChatStreamResult, Error>) -> Void, completion: ((Error?) -> Void)?) -> StreamCancellable<ChatStreamResult>
     
     /**
      This function sends an edits query to the OpenAI API and retrieves an edited version of the prompt based on the instruction given.

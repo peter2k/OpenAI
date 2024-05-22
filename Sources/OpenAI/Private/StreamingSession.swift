@@ -52,6 +52,9 @@ final class StreamingSession<ResultType: Codable>: NSObject, Identifiable, URLSe
         processJSON(from: stringContent)
     }
     
+    func cancel() {
+        urlSession.invalidateAndCancel()
+    }
 }
 
 extension StreamingSession {
